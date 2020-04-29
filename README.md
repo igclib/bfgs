@@ -6,4 +6,4 @@ This is an implementation of the BFGS algorithm for a very specific problem, wit
 
 ## Sanity checks
 
-To check function appearance, `plot()` to file, and `gnuplot -e "splot FILE with pm3d; pause -1"`
+To check function appearance, `plot()` to file, and `make plot file=FILE`
