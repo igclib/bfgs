@@ -14,4 +14,8 @@ clean:
 	rm -rf bin/*
 
 plot:
+ifeq ($(strip $(file)),)
+	@printf "file not set !\n"
+else
 	gnuplot -e "load 'img/viridis.pal'; splot '$(file)' with pm3d; pause -1"
+endif

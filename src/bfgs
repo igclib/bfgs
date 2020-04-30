@@ -1,5 +1,52 @@
 #pragma once
 
 #include <eigen3/Eigen/Core>
+#include <numeric>
 
-namespace bfgs {}
+namespace bfgs {
+const double epsilon = std::numeric_limits<double>::epsilon();
+class optimizer {
+public:
+  optimizer(double(f)(Eigen::VectorXd), Eigen::VectorXd x0)
+      : _f(f), _n_params(x0.size()), _max_iter(200 * _n_params), _x0(x0),
+        _gtol(1e-5){};
+
+  // set maximum iterations
+  void max_iter(unsigned int iter) { _max_iter = iter; }
+
+  // bfgs algorithm
+  void optimize() {
+    double old_fval = _f(_x0);
+    auto gfk = _fprime(_x0);
+    auto gnorm = gfk.maxCoeff();
+    double old_old_fval = old_fval + gfk.norm();
+    auto Hk = Eigen::MatrixXd::Identity(_n_params, _n_params);
+
+    unsigned int k = 0;
+    auto xk = _x0;
+    while ((gnorm > _gtol) && (k < _max_iter)) {
+    }
+  }
+
+private:
+  // numerical approximation of gradient by forward finite differences
+  Eigen::VectorXd _fprime(Eigen::VectorXd xk) {
+    Eigen::VectorXd grad = Eigen::VectorXd::Zero(_n_params);
+    Eigen::VectorXd dx = Eigen::VectorXd::Zero(_n_params);
+    double yk = _f(xk);
+    for (unsigned int k = 0; k < _n_params; ++k) {
+      dx(k) = epsilon;
+      grad(k) = (_f(xk + dx) - yk) / epsilon;
+      dx(k) = 0.0;
+    }
+    return grad;
+  }
+
+  double (*_f)(Eigen::VectorXd);
+  unsigned int _n_params;
+  unsigned int _max_iter;
+  Eigen::VectorXd _x0;
+  double _gtol;
+};
+
+} // namespace bfgs
