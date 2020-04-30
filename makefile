@@ -1,14 +1,17 @@
 CC := g++
-CFLAGS := -Wall -g -Isrc
+CFLAGS := -Wall -g -Isrc -DDEBUG
 TARGET := rosenbrock_2d
 
-.PHONY: tests clean plot
+.PHONY: test clean plot
 
-tests: $(TARGET)
+build: $(TARGET)
+
+test:$(TARGET)
+	bin/$^
 
 $(TARGET):
-	@$(CC) $(CFLAGS) test/$@.cpp -o bin/$@
-	@bin/$@
+	$(CC) $(CFLAGS) test/$@.cpp -o bin/$@
+	
 
 clean:
 	rm -rf bin/*

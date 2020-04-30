@@ -3,7 +3,7 @@
 #include <iostream>
 #include <vector>
 
-double rosenbrock_2d(Eigen::VectorXd x);
+double rosenbrock_2d(const Eigen::VectorXd &x);
 void plot();
 
 void plot() {
@@ -17,18 +17,19 @@ void plot() {
   }
 }
 
-double rosenbrock_2d(Eigen::VectorXd x) {
+double rosenbrock_2d(const Eigen::VectorXd &x) {
   return 100 * (x[1] - x[0] * x[0]) * (x[1] - x[0] * x[0]) +
          (1 - x[0]) * (1 - x[0]);
 }
 
 int main() {
+
   // plot();
 
   Eigen::Vector2d params(-2, -3);
   bfgs::optimizer o(rosenbrock_2d, params);
-  o.optimize();
-  // std::cerr << res << std::endl;
+  auto x_star = o.optimize();
+  std::cerr << x_star << std::endl;
 
   // std::cerr << "End of rosenbrock test" << std::endl;
 }

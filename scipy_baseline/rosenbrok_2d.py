@@ -1,11 +1,12 @@
 from scipy.optimize import minimize
+import numpy as np
 
 
 def rosenbrok_2d(x):
-    return 100 * (x[1] - x[0] * x[0]) * (x[1] - x[0] * x[0]) + (1 - x[0]) * (1 - x[0])
+    return np.sum(100.0 * (x[1:] - x[:-1] ** 2.0) ** 2.0 + (1 - x[:-1]) ** 2.0, axis=0)
 
 
 if __name__ == "__main__":
-    init_vector = [0, 0]
+    init_vector = [-2, -3]
     res = minimize(rosenbrok_2d, init_vector, tol=1e-5)
     print(res)
