@@ -25,11 +25,28 @@ double rosenbrock_2d(const Eigen::VectorXd &x) {
 int main() {
 
   // plot();
+  /*
+    auto params = Eigen::Vector2d(-3, -0.89999999999999836);
+    bfgs::optimizer o(rosenbrock_2d, params);
+    auto result = o.optimize();
+    std::cerr << result << std::endl;
+  */
 
-  Eigen::Vector2d params(-2, -3);
-  bfgs::optimizer o(rosenbrock_2d, params);
-  auto x_star = o.optimize();
-  std::cerr << x_star << std::endl;
-
-  // std::cerr << "End of rosenbrock test" << std::endl;
+  const double MAXTOL = 1e-4;
+  Eigen::Vector2d expected(1.0, 1.0);
+  for (double i = -3; i < 3; i += 0.1) {
+    for (double j = -3; j < 3; j += 0.1) {
+      auto params = Eigen::Vector2d(i, j);
+      bfgs::optimizer o(rosenbrock_2d, params);
+      auto result = o.optimize();
+      double error = (expected - result.x).cwiseAbs().maxCoeff();
+      if (!result.success) {
+        std::cerr << "No convergence for " << i << ", " << j << std::endl;
+      }
+      if (error > MAXTOL) {
+        std::cerr << error << std::endl;
+        std::cerr << "Too far for " << i << ", " << j << std::endl;
+      }
+    }
+  }
 }

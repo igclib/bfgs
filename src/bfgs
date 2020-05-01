@@ -2,30 +2,55 @@
 
 #include <cmath>
 #include <eigen3/Eigen/Core>
-#include <numeric>
-
-#ifdef DEBUG
 #include <iostream>
-#include <vector>
-#endif
+#include <numeric>
 
 namespace bfgs {
 
-// const double epsilon = std::sqrt(std::numeric_limits<double>::epsilon());
+class result {
+public:
+  result() = delete;
+  result(bool success, const Eigen::VectorXd &x, double fval, double nfev,
+         double njev, double nit)
+      : success(success), x(x), fval(fval), nfev(nfev), njev(njev), nit(nit) {}
+  friend std::ostream &operator<<(std::ostream &os, const result &r) {
+    auto msg = r.success ? "true" : "false";
+    os << "success : " << msg << std::endl;
+    os << "x : [";
+    for (int i = 0; i < r.x.size() - 1; ++i) {
+      os << r.x(i) << ", ";
+    }
+    os << r.x(r.x.size() - 1) << "]" << std::endl;
+    os << "f(x) : " << r.fval << std::endl;
+    os << "nfev : " << r.nfev << std::endl;
+    os << "njev : " << r.njev << std::endl;
+    os << "nit : " << r.nit; // << std::endl;
+    return os;
+  }
+  bool success;
+  Eigen::VectorXd x;
+  double fval;
+  double nfev;
+  double njev;
+  double nit;
+};
+
+const double epsilon = std::sqrt(std::numeric_limits<double>::epsilon());
 // use scipy's epsilon for reproducibility
-const double epsilon = 1.4901161193847656e-08;
+// const double epsilon = 1.4901161193847656e-08;
 
 class optimizer {
 public:
+  optimizer() = delete;
   optimizer(double(f)(const Eigen::VectorXd &), const Eigen::VectorXd &x0)
       : _objective(f), _n_params(x0.size()), _max_iter(200 * _n_params),
-        _x0(x0), _gtol(1e-5), _nfev(0), _njev(0){};
+        _x0(x0), _gtol(1e-4), _nfev(0), _njev(0){};
 
   // set maximum iterations
   void max_iter(unsigned int iter) { _max_iter = iter; }
 
   // bfgs algorithm
-  Eigen::VectorXd optimize() {
+  result optimize() {
     // objective function value at starting point
     double old_fval = _f(_x0);
     // gradient at starting point
@@ -57,13 +82,18 @@ public:
     double alpha_k;
     //?
     double rhok;
-
+    bool status = false;
     while ((gnorm > _gtol) && (k < _max_iter)) {
-#ifdef DEBUG
-      _path.push_back(xk);
-#endif
       pk = -(Hk * gfk);
-      alpha_k = _line_search(xk, pk, gfk, gfkp1, old_fval, old_old_fval);
+      try {
+        status =
+            _line_search(alpha_k, xk, pk, gfk, gfkp1, old_fval, old_old_fval);
+      } catch (const std::exception &e) {
+        std::cerr << e.what() << std::endl;
+        break;
+        // TODO WARNFLAF
+        // e.what();
+      }
       xpk1 = xk + alpha_k * pk;
       sk = xpk1 - xk;
       xk = xpk1;
@@ -81,14 +111,12 @@ public:
       Hk = A1 * Hk * A2 + rhok * sk * sk.transpose();
     }
 
-#ifdef DEBUG
-    for (const auto &p : _path) {
-      std::cerr << p << std::endl << std::endl;
+    if (k >= _max_iter) {
+      return result(false, xk, old_fval, _nfev, _njev, k);
     }
-#endif
-    // TODO return struct result
 
-    return xk;
+    // TODO return struct result
+    return result(true, xk, old_fval, _nfev, _njev, k);
   }
 
 private:
@@ -284,9 +312,10 @@ private:
   gfkp1 : array
       Gradient of f at the final point
   */
-  double _line_search(const Eigen::VectorXd &xk, const Eigen::VectorXd &pk,
-                      const Eigen::VectorXd &gfk, Eigen::VectorXd &gfkp1,
-                      double &old_fval, double &old_old_fval) {
+  bool _line_search(double &stp, const Eigen::VectorXd &xk,
+                    const Eigen::VectorXd &pk, const Eigen::VectorXd &gfk,
+                    Eigen::VectorXd &gfkp1, double &old_fval,
+                    double &old_old_fval) {
 
     auto phi = [&](double s) { return _f(xk + s * pk); };
     auto derphi = [&](double s) {
@@ -307,18 +336,17 @@ private:
 
     double phi0 = old_fval;
     double old_phi0 = old_old_fval;
+    old_old_fval = phi0;
     double derphi0 = gfk.dot(pk);
-    double alpha;
     if (derphi0 != 0.0) {
-      alpha = std::min(1.0, 1.01 * 2 * (phi0 - old_phi0) / derphi0);
-      if (alpha < 0.0) {
-        alpha = 1.0;
+      stp = std::min(1.0, 1.01 * 2 * (phi0 - old_phi0) / derphi0);
+      if (stp < 0.0) {
+        stp = 1.0;
       }
     } else {
-      alpha = 1.0;
+      stp = 1.0;
     }
 
-    double stp = alpha;
     double f = phi0;
     double g = derphi0;
     double ftol = c1;
@@ -359,6 +387,7 @@ private:
       // Obtain another function and derivative.
       f = phi(stp);
       g = derphi(stp);
+      old_fval = f;
       // If psi(stp) <= 0 and f'(stp) >= 0 for some step, then the
       // algorithm enters the second stage.
       ftest = finit + stp * gtest;
@@ -381,9 +410,7 @@ private:
       // Test for convergence
       if (f <= ftest && std::abs(g) <= gtol * (-ginit)) {
         // Update f values
-        old_old_fval = phi0;
-        old_fval = f;
-        return stp;
+        return true;
       }
       // A modified function is used to predict the step during the
       // first stage if a lower function value has been obtained but
@@ -474,10 +501,6 @@ private:
   // number of evaluations of the objective function
   unsigned int _nfev;
   unsigned int _njev;
-
-#ifdef DEBUG
-  std::vector<Eigen::Vector2d> _path;
-#endif
 }; // namespace bfgs
 
 } // namespace bfgs

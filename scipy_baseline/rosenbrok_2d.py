@@ -7,6 +7,6 @@ def rosenbrok_2d(x):
 
 
 if __name__ == "__main__":
-    init_vector = [-2, -3]
+    init_vector = [-3, -0.89999999999999836]
     res = minimize(rosenbrok_2d, init_vector, tol=1e-5)
     print(res)
