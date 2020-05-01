@@ -1,6 +1,6 @@
 # Broyden-Fletcher-Goldfarb-Shanno
 
-![rosenbrock](img/rosenbrock.png)
+![rosenbrock](img/ackley.png)
 
 This is an implementation of the BFGS algorithm for a very specific problem, with very specific requirements. You should not expect it to solve a general optimization problem.
 
@@ -16,7 +16,7 @@ Ideally aiming for very fast results on low dimensional, non-convex, differentia
 
 ## Sanity checks
 
-To check function appearance, `plot()` to file, and `make plot file=FILE`
+To check function and solver appearance, `make plot fun=FUNCTION_FILE path=PATH_FILE`
 
 ## Acknowledgements
 

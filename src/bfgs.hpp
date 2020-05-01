@@ -4,6 +4,7 @@
 #include <eigen3/Eigen/Core>
 #include <iostream>
 #include <numeric>
+#include <vector>
 
 namespace bfgs {
 
@@ -11,8 +12,9 @@ class result {
 public:
   result() = delete;
   result(bool success, const Eigen::VectorXd &x, double fval, double nfev,
-         double njev, double nit)
-      : success(success), x(x), fval(fval), nfev(nfev), njev(njev), nit(nit) {}
+         double njev, double nit, const std::vector<Eigen::VectorXd> &path)
+      : success(success), x(x), fval(fval), nfev(nfev), njev(njev), nit(nit),
+        path(path) {}
   friend std::ostream &operator<<(std::ostream &os, const result &r) {
     auto msg = r.success ? "true" : "false";
     os << "success : " << msg << std::endl;
@@ -33,6 +35,7 @@ public:
   double nfev;
   double njev;
   double nit;
+  std::vector<Eigen::VectorXd> path;
 };
 
 const double epsilon = std::sqrt(std::numeric_limits<double>::epsilon());
@@ -42,9 +45,24 @@ const double epsilon = std::sqrt(std::numeric_limits<double>::epsilon());
 class optimizer {
 public:
   optimizer() = delete;
-  optimizer(double(f)(const Eigen::VectorXd &), const Eigen::VectorXd &x0)
+  /*
+  maxiter (200*n_params)
+       The algorithm terminates if maxiter iterations were executed.
+  _gtol(1e-5)
+       The algorithm terminates if the norm of the gradient drops below
+       this. For well-scaled problems, a rule of thumb is that you can
+       expect to reduce the gradient norm by 8 orders of magnitude
+       (sqrt(eps)) compared to the gradient norm at a "typical" point (a
+       rough initial iterate for example). Further decrease is sometimes
+       possible, but inexact floating point arithmetic will eventually
+       limit the final accuracy. If _gtol is set too low, the
+       algorithm may end up iterating forever (or at least until another
+       stopping criterion triggers).
+  */
+  optimizer(double(f)(const Eigen::VectorXd &), const Eigen::VectorXd &x0,
+            bool retpath = false)
       : _objective(f), _n_params(x0.size()), _max_iter(200 * _n_params),
-        _x0(x0), _gtol(1e-4), _nfev(0), _njev(0){};
+        _x0(x0), _gtol(1e-5), _nfev(0), _njev(0), _retpath(retpath){};
 
   // set maximum iterations
   void max_iter(unsigned int iter) { _max_iter = iter; }
@@ -61,12 +79,11 @@ public:
     double old_old_fval = old_fval + gfk.norm() / 2;
 
     Eigen::MatrixXd I = Eigen::MatrixXd::Identity(_n_params, _n_params);
+    // hessian matrix at starting point
     Eigen::MatrixXd Hk = I;
     Eigen::MatrixXd A1 = Eigen::MatrixXd::Zero(_n_params, _n_params);
     Eigen::MatrixXd A2 = Eigen::MatrixXd::Zero(_n_params, _n_params);
 
-    // number of iterations
-    unsigned int k = 0;
     // current point
     Eigen::VectorXd xk(_x0);
     // search direction
@@ -83,7 +100,12 @@ public:
     //?
     double rhok;
     bool status = false;
+    // number of iterations
+    unsigned int k = 0;
     while ((gnorm > _gtol) && (k < _max_iter)) {
+      if (_retpath) {
+        _path.push_back(xk);
+      }
       pk = -(Hk * gfk);
       try {
         status =
@@ -99,24 +121,27 @@ public:
       xk = xpk1;
       yk = gfkp1 - gfk;
       gfk = gfkp1;
-      gnorm = gfk.cwiseAbs().maxCoeff();
       ++k;
+      gnorm = gfk.cwiseAbs().maxCoeff();
       if (gnorm <= _gtol) {
         break;
       }
       rhok = 1.0 / yk.dot(sk);
-      // A1 = I;
+      if (std::isnan(rhok) || std::isinf(rhok)) {
+        // Divide-by-zero encountered: rhok assumed large
+        rhok = 1000.0;
+      }
       A1 = I - sk * yk.transpose() * rhok;
       A2 = I - yk * sk.transpose() * rhok;
       Hk = A1 * Hk * A2 + rhok * sk * sk.transpose();
     }
 
     if (k >= _max_iter) {
-      return result(false, xk, old_fval, _nfev, _njev, k);
+      return result(false, xk, old_fval, _nfev, _njev, k, _path);
     }
 
     // TODO return struct result
-    return result(true, xk, old_fval, _nfev, _njev, k);
+    return result(true, xk, old_fval, _nfev, _njev, k, _path);
   }
 
 private:
@@ -500,7 +525,13 @@ private:
 
   // number of evaluations of the objective function
   unsigned int _nfev;
+
+  // number of evaluations of the gradient of the objective function
   unsigned int _njev;
-}; // namespace bfgs
+
+  // return all steps
+  bool _retpath;
+  std::vector<Eigen::VectorXd> _path;
+};
 
 } // namespace bfgs
